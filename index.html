@@ -116,6 +116,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
 
   <div class="pick">
     <div class="btn primary filebtn">Scegli una foto<input type="file" id="file" accept="image/*" aria-label="Scegli una foto"></div>
+    <button class="btn" id="auto" type="button" aria-label="Regola i parametri in automatico">✦ Auto</button>
     <button class="btn" id="rotate" type="button" aria-label="Ruota di 90 gradi">↻ Ruota</button>
   </div>
 
@@ -373,11 +374,75 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
   });
   document.addEventListener('dragover', e => e.preventDefault());
   document.addEventListener('drop', e => { e.preventDefault(); loadFile(e.dataTransfer.files && e.dataTransfer.files[0]); });
+  // ---------- Auto: analizza la foto e imposta i parametri ----------
+  function autoTune(){
+    const img = S.img; if (!img) return;
+    const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+    const W = Math.min(384, iw), H = Math.max(1, Math.round(W * ih / iw));
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const x = c.getContext('2d', {willReadFrequently:true});
+    x.fillStyle = '#fff'; x.fillRect(0,0,W,H); x.drawImage(img, 0, 0, W, H);
+    const d = x.getImageData(0,0,W,H).data, N = W*H;
+    const L = new Float32Array(N), hist = new Uint32Array(256);
+    for (let i=0,p=0;i<N;i++,p+=4){ const l = 0.299*d[p]+0.587*d[p+1]+0.114*d[p+2]; L[i]=l; hist[l|0]++; }
+    const pct = q => { let acc=0, t=q*N; for (let v=0;v<256;v++){ acc+=hist[v]; if (acc>=t) return v; } return 255; };
+    const p2 = pct(0.02), p50 = pct(0.5), p98 = pct(0.98);
+
+    // grafica (testo, loghi) o foto? quanta parte dei pixel sta agli estremi
+    let ext = 0; for (let v=0;v<256;v++) if (v<50 || v>205) ext += hist[v];
+    const graphic = ext / N > 0.88;
+
+    // nitidezza: energia del laplaciano
+    let lap = 0, n = 0;
+    for (let y=1;y<H-1;y+=2) for (let xx=1;xx<W-1;xx+=2){
+      const i=y*W+xx; lap += Math.abs(4*L[i]-L[i-1]-L[i+1]-L[i-W]-L[i+W]); n++;
+    }
+    lap = n ? lap/n : 0;
+
+    const set = (id, v) => { const el = $(id); el.value = Math.max(+el.min, Math.min(+el.max, Math.round(v))); };
+    const pick = v => { const el = document.querySelector('input[name=a][value="'+v+'"]'); if (el) el.checked = true; };
+
+    if (graphic){
+      // soglia di Otsu
+      let sum=0; for (let v=0;v<256;v++) sum += v*hist[v];
+      let sumB=0, wB=0, best=0, th=128;
+      for (let v=0;v<256;v++){
+        wB += hist[v]; if (!wB) continue; const wF = N - wB; if (!wF) break;
+        sumB += v*hist[v]; const mB = sumB/wB, mF = (sum-sumB)/wF, between = wB*wF*(mB-mF)*(mB-mF);
+        if (between > best){ best = between; th = v; }
+      }
+      pick('threshold'); set('thresh', th);
+      set('bright', 0); set('contrast', 0); set('gamma', 100); set('sharp', 0);
+      S.autoMsg = 'Auto: rilevato testo o grafica, uso Soglia a ' + th + '.';
+    } else {
+      // allarga i toni: p2 → quasi nero, p98 → quasi bianco
+      const span = Math.max(24, p98 - p2);
+      let f = 235 / span; f = Math.max(0.6, Math.min(2.6, f));
+      const b = (10 - 128) / f + 128 - p2;
+      const c255 = 259*255*(f-1) / (259 + 255*f);
+      set('contrast', c255 / 2.55);
+      set('bright', b / 2.55);
+      // mezzitoni: porta la mediana un po' sopra il centro (la carta termica scurisce)
+      const cB = +$('bright').value*2.55, cC = +$('contrast').value*2.55;
+      const ff = (259*(cC+255))/(255*(259-cC));
+      let m = (ff*(p50 + cB - 128) + 128) / 255; m = Math.max(0.03, Math.min(0.97, m));
+      const g = Math.log(m) / Math.log(0.6);
+      set('gamma', Math.max(0.5, Math.min(2.5, g)) * 100);
+      set('sharp', lap < 6 ? 55 : lap < 14 ? 35 : 15);
+      pick('atkinson');
+      S.autoMsg = 'Auto: foto regolata (toni ' + p2 + '–' + p98 + ', mediana ' + p50 + ').';
+    }
+    $('invert').checked = false;
+    syncLabels(); schedule();
+    $('hint').textContent = S.autoMsg + ' Puoi ritoccare a mano.';
+  }
+  $('auto').addEventListener('click', autoTune);
+
   function loadFile(file){
     if (!file) return;
     const url = URL.createObjectURL(file);
     const im = new Image();
-    im.onload = () => { S.img = im; S.rot = 0; S.sample = false;
+    im.onload = () => { S.img = im; S.rot = 0; S.sample = false; setTimeout(autoTune, 0);
       $('hint').textContent = 'Foto caricata. Regola il retino, poi stampa o salva.';
       schedule(); };
     im.onerror = () => { $('hint').textContent = 'Non riesco ad aprire questo file. Prova con una foto JPG o PNG (le foto HEIC dell’iPhone a volte non si aprono).'; };
