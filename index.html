@@ -1,0 +1,593 @@
+<title>Rotolino</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#E9ECEB; --panel:#FFFFFF; --ink:#15191B; --muted:#5D6769; --line:#D3D9D8;
+  --accent:#0E7C7B; --accent-ink:#FFFFFF; --paper:#FFFFFF; --soft:#DDE8E7;
+  --shadow:0 1px 2px rgba(21,25,27,.06),0 8px 24px rgba(21,25,27,.08);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --ground:#101415; --panel:#181E1F; --ink:#E8EEEE; --muted:#96A3A4; --line:#2A3334;
+    --accent:#3FB8B5; --accent-ink:#081212; --paper:#F4F6F5; --soft:#1F2C2D;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --ground:#101415; --panel:#181E1F; --ink:#E8EEEE; --muted:#96A3A4; --line:#2A3334;
+  --accent:#3FB8B5; --accent-ink:#081212; --paper:#F4F6F5; --soft:#1F2C2D;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font:15px/1.5 "Figtree",system-ui,-apple-system,"Segoe UI",sans-serif;padding-inline:16px;padding-block:20px 40px}
+.wrap{max-width:560px;margin:0 auto;display:grid;gap:18px}
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{font-family:"Bricolage Grotesque","Figtree",system-ui,sans-serif;font-weight:800;font-size:34px;line-height:1;margin:0;letter-spacing:-.02em;text-wrap:balance}
+.sub{margin:6px 0 0;color:var(--muted);font-size:14px;max-width:40ch}
+.mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace}
+.spec{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:4px 10px}
+
+.pick{display:flex;gap:10px;flex-wrap:wrap}
+.btn{appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--ink);font:600 15px/1 "Figtree",system-ui,sans-serif;padding:13px 16px;border-radius:12px;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);flex:1;justify-content:center}
+.btn:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.filebtn{position:relative;overflow:hidden}
+.filebtn input[type=file]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:100px;margin:0}
+.filebtn:focus-within{outline:3px solid var(--accent);outline-offset:2px}
+
+/* receipt strip */
+.stage{background:var(--soft);border-radius:18px;padding:22px 16px 26px;display:flex;flex-direction:column;align-items:center;gap:12px}
+.slot{width:min(100%,300px);height:10px;border-radius:6px;background:var(--ink);opacity:.85}
+.receipt{position:relative;width:min(100%,280px);background:var(--paper);box-shadow:var(--shadow);padding:10px 8px 16px;margin-top:-8px}
+.receipt::after{content:"";position:absolute;left:0;right:0;bottom:-8px;height:8px;background:
+  linear-gradient(-45deg,transparent 5.5px,var(--paper) 0) 0 0/10px 8px repeat-x,
+  linear-gradient(45deg,transparent 5.5px,var(--paper) 0) 0 0/10px 8px repeat-x}
+#out{display:block;width:100%;height:auto;image-rendering:pixelated;image-rendering:crisp-edges;-webkit-touch-callout:default}
+.meta{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;font-size:12px;color:var(--muted)}
+.meta b{color:var(--ink);font-weight:500;font-variant-numeric:tabular-nums}
+.bthead{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.pill{font:500 11px/1 "IBM Plex Mono",monospace;letter-spacing:.06em;text-transform:uppercase;padding:6px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.pill[data-s="on"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.pill[data-s="busy"]{border-color:var(--accent);color:var(--accent)}
+.pill[data-s="err"]{border-color:#C2412D;color:#C2412D}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .15s linear}
+.note{margin:0;font-size:13px;color:var(--muted)}
+select{padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);font:500 14px "Figtree",system-ui,sans-serif}
+#save{justify-self:start}
+.status{font-size:12px;color:var(--muted);margin:0;min-height:1em}
+.hint{font-size:13px;color:var(--muted);text-align:center;margin:0;max-width:36ch}
+.hint strong{color:var(--ink)}
+
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px 16px;display:grid;gap:18px}
+.panel h2{margin:0;font:600 11px/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.seg{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:6px}
+.seg label{position:relative}
+.seg input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.seg span{display:block;text-align:center;padding:10px 6px;border:1px solid var(--line);border-radius:10px;font-size:13px;font-weight:600;line-height:1.2}
+.seg span small{display:block;font:400 11px/1.3 "IBM Plex Mono",monospace;color:var(--muted);margin-top:3px}
+.seg input:checked+span{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.seg input:checked+span small{color:inherit;opacity:.75}
+.seg input:focus-visible+span{outline:3px solid var(--accent);outline-offset:2px}
+
+.row{display:grid;gap:6px}
+.row .top{display:flex;justify-content:space-between;align-items:baseline;font-size:14px;font-weight:500}
+.row output{font:500 13px "IBM Plex Mono",monospace;color:var(--muted);font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
+.toggles{display:flex;gap:8px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:999px;padding:8px 14px;font-size:14px;cursor:pointer;background:var(--panel);color:var(--ink);font-family:inherit}
+.chip input{accent-color:var(--accent);margin:0}
+.custom{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted)}
+.custom input{width:90px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);font:500 14px "IBM Plex Mono",monospace}
+.foot{font-size:13px;color:var(--muted);line-height:1.55}
+.foot p{margin:0 0 8px}
+@media (prefers-reduced-motion:no-preference){ .receipt{transition:opacity .15s} }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Rotolino</h1>
+      <p class="sub">Trasforma le foto in bianco e nero puro, pronte per la mini stampante termica.</p>
+    </div>
+    <span class="spec mono">203 dpi · 8 punti/mm</span>
+  </header>
+
+  <div class="pick">
+    <div class="btn primary filebtn">Scegli una foto<input type="file" id="file" accept="image/*" aria-label="Scegli una foto"></div>
+    <button class="btn" id="rotate" type="button" aria-label="Ruota di 90 gradi">↻ Ruota</button>
+  </div>
+
+  <section class="stage" aria-label="Anteprima di stampa">
+    <div class="slot" aria-hidden="true"></div>
+    <div class="receipt"><img id="out" alt="Anteprima dell'immagine ottimizzata per la stampa"></div>
+    <div class="meta mono">
+      <span>larghezza <b id="mw">384</b> px</span>
+      <span>altezza <b id="mh">–</b> px</span>
+      <span>carta <b id="mm">–</b> mm</span>
+    </div>
+    <p class="hint" id="hint">Immagine di esempio: scegli una tua foto per iniziare.</p>
+  </section>
+
+  <section class="panel" aria-labelledby="h-bt">
+    <div class="bthead">
+      <h2 id="h-bt">Stampa via Bluetooth</h2>
+      <span class="pill" id="btPill" data-s="off">non collegata</span>
+    </div>
+    <div class="pick">
+      <button class="btn" id="btConnect" type="button">Collega stampante</button>
+      <button class="btn primary" id="btPrint" type="button" disabled>Stampa</button>
+    </div>
+    <p class="status mono" id="btStatus" role="status"></p>
+    <div class="bar" id="btBar" hidden><i id="btFill"></i></div>
+    <div class="row">
+      <div class="top"><label for="energy">Scurezza</label><output id="o-energy">35%</output></div>
+      <input type="range" id="energy" min="5" max="100" value="35">
+    </div>
+    <div class="toggles">
+      <label class="chip"><input type="checkbox" id="flip180"> Capovolgi 180°</label>
+      <label class="chip"><input type="checkbox" id="feedMore" checked> Avanza carta alla fine</label>
+    </div>
+    <div class="custom">
+      <label for="proto">Protocollo</label>
+      <select id="proto">
+        <option value="auto">Automatico</option>
+        <option value="classic">Classico (GB, MX, YT…)</option>
+        <option value="mxw">MXW01</option>
+      </select>
+    </div>
+    <p class="note" id="btNote" hidden>Il Bluetooth diretto funziona solo in Chrome su Android e con la pagina aperta da un indirizzo https (non dal file e non dentro altre app).</p>
+    <p class="note">Chiudi l'app Fun Print prima di collegarti: la stampante accetta una connessione alla volta.</p>
+  </section>
+
+  <section class="panel" aria-labelledby="h-save">
+    <h2 id="h-save">Salva l'immagine</h2>
+    <button class="btn" id="save" type="button">Salva PNG</button>
+    <p class="status mono" id="saveStatus" role="status"></p>
+  </section>
+
+  <section class="panel" aria-labelledby="h-paper">
+    <h2 id="h-paper">Carta</h2>
+    <div class="seg" role="radiogroup" aria-label="Larghezza di stampa">
+      <label><input type="radio" name="w" id="w384" value="384" checked><span>57/58 mm<small>384 px</small></span></label>
+      <label><input type="radio" name="w" id="w576" value="576"><span>80 mm<small>576 px</small></span></label>
+      <label><input type="radio" name="w" id="wcus" value="custom"><span>Altro<small>a mano</small></span></label>
+    </div>
+    <div class="custom" id="customBox" hidden>
+      <label for="cw">Larghezza in punti</label>
+      <input type="number" id="cw" min="64" max="1200" step="8" value="384">
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-dither">
+    <h2 id="h-dither">Retino</h2>
+    <div class="seg" role="radiogroup" aria-label="Algoritmo di retinatura">
+      <label><input type="radio" name="a" id="a-atk" value="atkinson" checked><span>Atkinson<small>foto nitide</small></span></label>
+      <label><input type="radio" name="a" id="a-fs" value="fs"><span>Floyd‑S.<small>più sfumato</small></span></label>
+      <label><input type="radio" name="a" id="a-bay" value="bayer"><span>Trama<small>stile fumetto</small></span></label>
+      <label><input type="radio" name="a" id="a-th" value="threshold"><span>Soglia<small>testo, loghi</small></span></label>
+    </div>
+    <div class="row" id="threshRow" hidden>
+      <div class="top"><label for="thresh">Soglia</label><output id="o-thresh">128</output></div>
+      <input type="range" id="thresh" min="1" max="254" value="128">
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-adj">
+    <h2 id="h-adj">Regolazioni</h2>
+    <div class="row">
+      <div class="top"><label for="bright">Luminosità</label><output id="o-bright">+10</output></div>
+      <input type="range" id="bright" min="-60" max="60" value="10">
+    </div>
+    <div class="row">
+      <div class="top"><label for="contrast">Contrasto</label><output id="o-contrast">+15</output></div>
+      <input type="range" id="contrast" min="-50" max="80" value="15">
+    </div>
+    <div class="row">
+      <div class="top"><label for="gamma">Mezzitoni</label><output id="o-gamma">1.20</output></div>
+      <input type="range" id="gamma" min="50" max="250" value="120">
+    </div>
+    <div class="row">
+      <div class="top"><label for="sharp">Nitidezza</label><output id="o-sharp">30</output></div>
+      <input type="range" id="sharp" min="0" max="100" value="30">
+    </div>
+    <div class="toggles">
+      <label class="chip"><input type="checkbox" id="invert"> Inverti</label>
+      <button class="chip" type="button" id="reset">Valori consigliati</button>
+    </div>
+  </section>
+
+  <div class="foot">
+    <p>La carta termica stampa solo punti neri, senza grigi: il retino simula le sfumature con la densità dei punti. Le stampanti economiche tendono a scurire, per questo luminosità e mezzitoni partono un po' alti.</p>
+    <p>La stampa diretta usa il protocollo delle stampanti “cat printer” gestite da Fun Print (GB01–GB03, MX05–MX11, YT01, MXW01 e simili), ricostruito dalla community open source. Se la stampa esce storta o illeggibile, prova l'altro protocollo o la larghezza 384.</p>
+  </div>
+</div>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const DEF = {bright:10, contrast:15, gamma:120, sharp:30, thresh:128};
+  const S = {img:null, rot:0, sample:true};
+  const work = document.createElement('canvas');
+  const wctx = work.getContext('2d', {willReadFrequently:true});
+
+  function widthPx(){
+    const v = document.querySelector('input[name=w]:checked').value;
+    if (v === 'custom'){ let n = parseInt($('cw').value,10) || 384; n = Math.max(64, Math.min(1200, n)); return Math.round(n/8)*8; }
+    return parseInt(v,10);
+  }
+  const algo = () => document.querySelector('input[name=a]:checked').value;
+
+  const BAYER = [0,32,8,40,2,34,10,42,48,16,56,24,50,18,58,26,12,44,4,36,14,46,6,38,60,28,52,20,62,30,54,22,3,35,11,43,1,33,9,41,51,19,59,27,49,17,57,25,15,47,7,39,13,45,5,37,63,31,55,23,61,29,53,21];
+
+  function render(){
+    const img = S.img; if (!img) return;
+    const W = widthPx();
+    const swap = S.rot === 90 || S.rot === 270;
+    const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+    const sw = swap ? ih : iw, sh = swap ? iw : ih;
+    const H = Math.max(1, Math.round(W * sh / sw));
+    work.width = W; work.height = H;
+    wctx.save();
+    wctx.fillStyle = '#fff'; wctx.fillRect(0,0,W,H);
+    wctx.imageSmoothingEnabled = true; wctx.imageSmoothingQuality = 'high';
+    wctx.translate(W/2, H/2); wctx.rotate(S.rot*Math.PI/180);
+    const dw = swap ? H : W, dh = swap ? W : H;
+    wctx.drawImage(img, -dw/2, -dh/2, dw, dh);
+    wctx.restore();
+
+    const id = wctx.getImageData(0,0,W,H), d = id.data, N = W*H;
+    let L = new Float32Array(N);
+    const b = +$('bright').value * 2.55;
+    const c = +$('contrast').value * 2.55;
+    const f = (259*(c+255))/(255*(259-c));
+    const g = +$('gamma').value / 100;
+    for (let i=0,p=0;i<N;i++,p+=4){
+      let l = 0.299*d[p] + 0.587*d[p+1] + 0.114*d[p+2];
+      l = f*(l + b - 128) + 128;
+      l = l < 0 ? 0 : l > 255 ? 255 : l;
+      L[i] = 255 * Math.pow(l/255, 1/g);
+    }
+    const amt = +$('sharp').value / 50;
+    if (amt > 0){
+      const o = new Float32Array(N);
+      for (let y=0;y<H;y++) for (let x=0;x<W;x++){
+        const i=y*W+x;
+        const n = (L[y>0?i-W:i] + L[y<H-1?i+W:i] + L[x>0?i-1:i] + L[x<W-1?i+1:i]) / 4;
+        o[i] = L[i] + amt*(L[i]-n);
+      }
+      L = o;
+    }
+    if ($('invert').checked) for (let i=0;i<N;i++) L[i] = 255 - L[i];
+
+    const A = algo(), out = new Uint8Array(N);
+    if (A === 'threshold'){
+      const t = +$('thresh').value;
+      for (let i=0;i<N;i++) out[i] = L[i] >= t ? 255 : 0;
+    } else if (A === 'bayer'){
+      for (let y=0;y<H;y++) for (let x=0;x<W;x++){
+        const i=y*W+x, t=(BAYER[(y&7)*8+(x&7)]+0.5)*4;
+        out[i] = L[i] >= t ? 255 : 0;
+      }
+    } else if (A === 'fs'){
+      for (let y=0;y<H;y++) for (let x=0;x<W;x++){
+        const i=y*W+x, o=L[i], nv = o<128?0:255, e=o-nv; out[i]=nv;
+        if (x+1<W) L[i+1]+=e*7/16;
+        if (y+1<H){ if (x>0) L[i+W-1]+=e*3/16; L[i+W]+=e*5/16; if (x+1<W) L[i+W+1]+=e/16; }
+      }
+    } else {
+      for (let y=0;y<H;y++) for (let x=0;x<W;x++){
+        const i=y*W+x, o=L[i], nv = o<128?0:255, e=(o-nv)/8; out[i]=nv;
+        if (x+1<W) L[i+1]+=e; if (x+2<W) L[i+2]+=e;
+        if (y+1<H){ if (x>0) L[i+W-1]+=e; L[i+W]+=e; if (x+1<W) L[i+W+1]+=e; }
+        if (y+2<H) L[i+2*W]+=e;
+      }
+    }
+    for (let i=0,p=0;i<N;i++,p+=4){ d[p]=d[p+1]=d[p+2]=out[i]; d[p+3]=255; }
+    S.bits = {out, W, H};
+    wctx.putImageData(id,0,0);
+    $('out').src = work.toDataURL('image/png');
+    $('mw').textContent = W; $('mh').textContent = H;
+    $('mm').textContent = (H/8).toFixed(0);
+  }
+
+  let queued = false;
+  function schedule(){ if (queued) return; queued = true; requestAnimationFrame(()=>{ queued=false; render(); }); }
+
+  function syncLabels(){
+    const sgn = v => (v>0?'+':'') + v;
+    $('o-bright').textContent = sgn(+$('bright').value);
+    $('o-contrast').textContent = sgn(+$('contrast').value);
+    $('o-gamma').textContent = (+$('gamma').value/100).toFixed(2);
+    $('o-sharp').textContent = $('sharp').value;
+    $('o-thresh').textContent = $('thresh').value;
+    $('o-energy').textContent = $('energy').value + '%';
+    $('threshRow').hidden = algo() !== 'threshold';
+    $('customBox').hidden = document.querySelector('input[name=w]:checked').value !== 'custom';
+  }
+
+  document.querySelectorAll('input').forEach(el => {
+    if (el.type === 'file') return;
+    el.addEventListener('input', ()=>{ syncLabels(); schedule(); });
+    el.addEventListener('change', ()=>{ syncLabels(); schedule(); });
+  });
+  $('rotate').addEventListener('click', ()=>{ S.rot = (S.rot+90)%360; schedule(); });
+  $('reset').addEventListener('click', ()=>{
+    for (const k in DEF) $(k).value = DEF[k];
+    $('invert').checked = false; syncLabels(); schedule();
+  });
+  $('file').addEventListener('change', e => { loadFile(e.target.files && e.target.files[0]); e.target.value = ''; });
+  document.addEventListener('paste', e => {
+    const it = [...(e.clipboardData ? e.clipboardData.items : [])].find(i => i.type.startsWith('image/'));
+    if (it) loadFile(it.getAsFile());
+  });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => { e.preventDefault(); loadFile(e.dataTransfer.files && e.dataTransfer.files[0]); });
+  function loadFile(file){
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    const im = new Image();
+    im.onload = () => { S.img = im; S.rot = 0; S.sample = false;
+      $('hint').textContent = 'Foto caricata. Regola il retino, poi stampa o salva.';
+      schedule(); };
+    im.onerror = () => { $('hint').textContent = 'Non riesco ad aprire questo file. Prova con una foto JPG o PNG (le foto HEIC dell’iPhone a volte non si aprono).'; };
+    im.src = url;
+  }
+
+  // sample image: a small still life drawn on canvas
+  function sample(){
+    const c = document.createElement('canvas'); c.width = 600; c.height = 520;
+    const x = c.getContext('2d');
+    const sky = x.createLinearGradient(0,0,0,520);
+    sky.addColorStop(0,'#8fb6d9'); sky.addColorStop(.62,'#f4d7a8'); sky.addColorStop(.63,'#5b7d4f'); sky.addColorStop(1,'#2f4a2a');
+    x.fillStyle = sky; x.fillRect(0,0,600,520);
+    const sun = x.createRadialGradient(420,200,10,420,200,110);
+    sun.addColorStop(0,'#fff6d8'); sun.addColorStop(.5,'#f8c46a'); sun.addColorStop(1,'rgba(248,196,106,0)');
+    x.fillStyle = sun; x.beginPath(); x.arc(420,200,110,0,7); x.fill();
+    x.fillStyle = '#3d5a3a';
+    x.beginPath(); x.moveTo(0,330); x.quadraticCurveTo(150,230,300,320); x.quadraticCurveTo(450,270,600,330); x.lineTo(600,520); x.lineTo(0,520); x.fill();
+    x.fillStyle = '#6b4a2b'; x.fillRect(120,300,18,120);
+    const leaf = x.createRadialGradient(129,270,5,129,270,70); leaf.addColorStop(0,'#7da35e'); leaf.addColorStop(1,'#2c4424');
+    x.fillStyle = leaf; x.beginPath(); x.arc(129,270,68,0,7); x.fill();
+    x.fillStyle = '#ffffff'; x.font = '800 64px "Bricolage Grotesque", system-ui, sans-serif';
+    x.textAlign = 'center'; x.fillText('Ciao!', 300, 470);
+    const im = new Image(); im.onload = () => { if (S.sample){ S.img = im; schedule(); } }; im.src = c.toDataURL();
+  }
+
+  // ---------- Salva PNG (download normale) ----------
+  $('save').addEventListener('click', ()=>{
+    const st = $('saveStatus'); st.textContent = '';
+    work.toBlob(blob => {
+      if (!blob){ st.textContent = 'Non riesco a creare il file. Riprova.'; return; }
+      const d = new Date(), p = n => String(n).padStart(2,'0');
+      const name = `stampa-${work.width}px-${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.png`;
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+      st.textContent = 'Salvato nei Download: ' + name;
+    }, 'image/png');
+  });
+
+  // ---------- Bluetooth: stampanti Fun Print ("cat printer") ----------
+  const SVC = ['0000ae30-0000-1000-8000-00805f9b34fb', '0000af30-0000-1000-8000-00805f9b34fb'];
+  const CH = { ctl:'0000ae01-0000-1000-8000-00805f9b34fb', ntf:'0000ae02-0000-1000-8000-00805f9b34fb', data:'0000ae03-0000-1000-8000-00805f9b34fb' };
+  const CRC8 = [];
+  for (let i=0;i<256;i++){ let c=i; for (let k=0;k<8;k++) c = c & 0x80 ? ((c<<1) ^ 0x07) & 0xff : (c<<1) & 0xff; CRC8.push(c); }
+  const crc8 = a => { let c=0; for (const b of a) c = CRC8[(c ^ b) & 0xff]; return c; };
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const le16 = n => [n & 0xff, (n >> 8) & 0xff];
+
+  function packet(h1, h2, id, payload){
+    const p = Uint8Array.from(payload), o = new Uint8Array(8 + p.length);
+    o.set([h1, h2, id, 0x00, p.length & 0xff, (p.length >> 8) & 0xff]);
+    o.set(p, 6); o[6+p.length] = crc8(p); o[7+p.length] = 0xff;
+    return o;
+  }
+  const cat = (id, pl) => packet(0x51, 0x78, id, pl);
+  const mxw = (id, pl) => packet(0x22, 0x21, id, pl);
+  const PAUSE = [0x51,0x78,0xae,0x01,0x01,0x00,0x10,0x70,0xff];
+  const RESUME = [0x51,0x78,0xae,0x01,0x01,0x00,0x00,0x00,0xff];
+  const same = (a, b) => a.length === b.length && a.every((v,i) => v === b[i]);
+
+  const BT = { dev:null, ctl:null, ntf:null, data:null, proto:null, paused:false, busy:false, chunk:180, waiters:{} };
+
+  function btUI(state, msg){
+    const pill = $('btPill');
+    pill.dataset.s = state;
+    pill.textContent = {off:'non collegata', on:'collegata', busy:'in corso', err:'errore'}[state];
+    if (msg !== undefined) $('btStatus').textContent = msg;
+    $('btPrint').disabled = !(BT.ctl && !BT.busy);
+    $('btConnect').textContent = BT.ctl ? 'Scollega' : 'Collega stampante';
+    $('btConnect').disabled = BT.busy || !navigator.bluetooth;
+  }
+  function progress(f){
+    $('btBar').hidden = f == null;
+    if (f != null) $('btFill').style.width = Math.round(f*100) + '%';
+  }
+
+  function onNotify(e){
+    const v = new Uint8Array(e.target.value.buffer.slice(e.target.value.byteOffset, e.target.value.byteOffset + e.target.value.byteLength));
+    if (same([...v], PAUSE)) { BT.paused = true; return; }
+    if (same([...v], RESUME)) { BT.paused = false; return; }
+    if (v[0] === 0x22 && v[1] === 0x21){
+      const id = v[2], len = v[4] | (v[5] << 8), pl = v.slice(6, 6 + len);
+      const w = BT.waiters[id]; if (w){ delete BT.waiters[id]; w(pl); }
+    }
+  }
+  function waitFor(id, ms){
+    return new Promise((res, rej) => {
+      const t = setTimeout(() => { delete BT.waiters[id]; rej(new Error('La stampante non risponde')); }, ms);
+      BT.waiters[id] = pl => { clearTimeout(t); res(pl); };
+    });
+  }
+
+  async function writeTo(ch, bytes){
+    if (ch.writeValueWithoutResponse) await ch.writeValueWithoutResponse(bytes);
+    else await ch.writeValue(bytes);
+  }
+  // stream per protocollo classico: spezza in blocchi e rispetta pausa/ripresa
+  async function streamClassic(bytes, onProg){
+    let pos = 0;
+    while (pos < bytes.length){
+      while (BT.paused) await sleep(50);
+      const part = bytes.slice(pos, pos + BT.chunk);
+      try { await writeTo(BT.ctl, part); }
+      catch (err){
+        if (BT.chunk > 20){ BT.chunk = 20; continue; }
+        throw err;
+      }
+      pos += part.length;
+      if (onProg) onProg(pos / bytes.length);
+      await sleep(BT.chunk > 20 ? 12 : 6);
+    }
+  }
+
+  // bitmap 1 bit per punto, bit meno significativo = punto più a sinistra, 1 = nero
+  function rowsFromBits(){
+    const {out, W, H} = S.bits, flip = $('flip180').checked;
+    const bpr = Math.ceil(W / 8), buf = new Uint8Array(bpr * H);
+    for (let y=0;y<H;y++){
+      const sy = flip ? H-1-y : y;
+      for (let x=0;x<W;x++){
+        const sx = flip ? W-1-x : x;
+        if (out[sy*W + sx] === 0) buf[y*bpr + (x>>3)] |= 1 << (x & 7);
+      }
+    }
+    return {buf, bpr, H, W};
+  }
+
+  function pickProto(name){
+    const forced = $('proto').value;
+    if (forced !== 'auto') return forced;
+    return /^MXW/i.test(name || '') ? 'mxw' : 'classic';
+  }
+
+  async function connect(){
+    if (!navigator.bluetooth){ $('btNote').hidden = false; btUI('err', 'Bluetooth non disponibile in questo browser.'); return; }
+    try {
+      BT.busy = true; btUI('busy', 'Scegli la stampante dalla lista…');
+      const prefixes = ['MX','GB','GT','YT','PD','SC','LY','BQ','MPT','MXTP','X5','X6','AZ','YHK'];
+      const dev = await navigator.bluetooth.requestDevice({
+        filters: [{services:[SVC[0]]}, ...prefixes.map(p => ({namePrefix:p}))],
+        optionalServices: SVC
+      });
+      btUI('busy', 'Collegamento a ' + (dev.name || 'stampante') + '…');
+      const gatt = await dev.gatt.connect();
+      let svc = null;
+      for (const u of SVC){ try { svc = await gatt.getPrimaryService(u); break; } catch(e){} }
+      if (!svc) throw new Error('Questa stampante non usa il protocollo supportato.');
+      BT.dev = dev;
+      BT.ctl = await svc.getCharacteristic(CH.ctl);
+      BT.ntf = await svc.getCharacteristic(CH.ntf);
+      try { BT.data = await svc.getCharacteristic(CH.data); } catch(e){ BT.data = null; }
+      BT.proto = pickProto(dev.name);
+      if (BT.proto === 'mxw' && !BT.data) BT.proto = 'classic';
+      BT.paused = false; BT.chunk = 180;
+      await BT.ntf.startNotifications();
+      BT.ntf.addEventListener('characteristicvaluechanged', onNotify);
+      dev.addEventListener('gattserverdisconnected', () => {
+        BT.ctl = BT.ntf = BT.data = null; BT.busy = false; progress(null);
+        btUI('off', 'Stampante scollegata.');
+      });
+      BT.busy = false;
+      btUI('on', (dev.name || 'Stampante') + ' · protocollo ' + (BT.proto === 'mxw' ? 'MXW01' : 'classico'));
+    } catch (err){
+      BT.busy = false;
+      if (err && err.name === 'NotFoundError') btUI('off', 'Nessuna stampante scelta.');
+      else btUI('err', (err && err.message) || 'Collegamento non riuscito.');
+    }
+  }
+  function disconnect(){
+    try { BT.dev && BT.dev.gatt.connected && BT.dev.gatt.disconnect(); } catch(e){}
+  }
+
+  async function printClassic(){
+    const {buf, bpr, H, W} = rowsFromBits();
+    const name = (BT.dev && BT.dev.name) || '';
+    const energy = Math.round(0x1000 + (+$('energy').value/100) * (0xffff - 0x1000));
+    const pre = [];
+    pre.push(cat(0xa3, [0x00]));
+    if (/^GB03/i.test(name)) pre.push(Uint8Array.from([0x12,0x51,0x78,0xa3,0x00,0x01,0x00,0x00,0x00,0xff]));
+    else pre.push(Uint8Array.from([0x51,0x78,0xa3,0x00,0x01,0x00,0x00,0x00,0xff]));
+    pre.push(cat(0xa4, [50]));
+    pre.push(cat(0xbd, [32]));
+    pre.push(cat(0xaf, le16(energy)));
+    pre.push(cat(0xbe, [0x01]));
+    pre.push(cat(0xa9, [0x00]));
+    pre.push(cat(0xa6, [0xaa,0x55,0x17,0x38,0x44,0x5f,0x5f,0x5f,0x44,0x38,0x2c]));
+    const rows = [];
+    for (let y=0;y<H;y++) rows.push(cat(0xa2, buf.subarray(y*bpr, (y+1)*bpr)));
+    const post = [cat(0xa6, [0xaa,0x55,0x17,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x17]), cat(0xbd, [8])];
+    if ($('feedMore').checked){
+      if (/^MX(05|06|08|09|10)/i.test(name)) for (let i=0;i<100;i++) post.push(cat(0xa2, new Uint8Array(bpr)));
+      else post.push(cat(0xa1, le16(100)));
+    }
+    post.push(cat(0xa3, [0x00]));
+    const all = concat([...pre, ...rows, ...post]);
+    if (W !== 384) $('btStatus').textContent = 'Attenzione: larghezza ' + W + ' px, la maggior parte di queste stampanti usa 384.';
+    await streamClassic(all, f => progress(f));
+  }
+
+  async function printMXW(){
+    const {buf, bpr, H} = rowsFromBits();
+    const intensity = Math.round(+$('energy').value/100 * 255);
+    await writeTo(BT.ctl, mxw(0xa2, [intensity])); await sleep(50);
+    const st = await (async () => { const w = waitFor(0xa1, 5000); await writeTo(BT.ctl, mxw(0xa1, [0x00])); return w; })();
+    if (st.length > 12 && st[12] !== 0) throw new Error('La stampante segnala un problema (carta finita o sportello aperto?).');
+    const extra = $('feedMore').checked ? 60 : 0;
+    const lines = H + extra;
+    const ackP = waitFor(0xa9, 5000);
+    await writeTo(BT.ctl, mxw(0xa9, [...le16(lines), 0x30, 0x00]));
+    const ack = await ackP;
+    if (!ack || ack[0] !== 0) throw new Error('La stampante ha rifiutato la stampa.');
+    let data = new Uint8Array(Math.max(lines, 90) * bpr); data.set(buf);
+    for (let pos=0; pos<data.length; pos+=bpr){
+      await writeTo(BT.data, data.slice(pos, pos+bpr));
+      progress(pos / data.length);
+      await sleep(12);
+    }
+    const doneP = waitFor(0xaa, 30000);
+    await writeTo(BT.ctl, mxw(0xad, [0x00]));
+    progress(1);
+    $('btStatus').textContent = 'La stampante sta finendo…';
+    try { await doneP; } catch(e){ /* alcune unità non avvisano: la stampa di solito è comunque uscita */ }
+  }
+
+  function concat(parts){
+    let n = 0; for (const p of parts) n += p.length;
+    const o = new Uint8Array(n); let i = 0;
+    for (const p of parts){ o.set(p, i); i += p.length; }
+    return o;
+  }
+
+  async function doPrint(){
+    if (!BT.ctl || !S.bits || BT.busy) return;
+    BT.busy = true; btUI('busy', 'Invio alla stampante…'); progress(0);
+    try {
+      if (BT.proto === 'mxw') await printMXW(); else await printClassic();
+      btUI('on', 'Stampa inviata (' + S.bits.H + ' righe, circa ' + Math.round(S.bits.H/8) + ' mm).');
+    } catch (err){
+      btUI(BT.ctl ? 'on' : 'off', 'Errore: ' + ((err && err.message) || 'stampa non riuscita'));
+    } finally {
+      BT.busy = false; btUI(BT.ctl ? 'on' : 'off'); setTimeout(() => progress(null), 1500);
+    }
+  }
+
+  $('btConnect').addEventListener('click', () => BT.ctl ? disconnect() : connect());
+  $('btPrint').addEventListener('click', doPrint);
+  $('proto').addEventListener('change', () => {
+    if (BT.dev){ BT.proto = pickProto(BT.dev.name); if (BT.proto === 'mxw' && !BT.data) BT.proto = 'classic';
+      btUI('on', (BT.dev.name || 'Stampante') + ' · protocollo ' + (BT.proto === 'mxw' ? 'MXW01' : 'classico')); }
+  });
+  if (!navigator.bluetooth) { $('btNote').hidden = false; $('btConnect').disabled = true; }
+  btUI(navigator.bluetooth ? 'off' : 'err', navigator.bluetooth ? '' : 'Bluetooth non disponibile qui.');
+
+  syncLabels();
+  (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()).then(sample, sample);
+})();
+</script>
