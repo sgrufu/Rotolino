@@ -65,6 +65,11 @@ h1{font-family:"Bricolage Grotesque","Figtree",system-ui,sans-serif;font-weight:
 .note{margin:0;font-size:13px;color:var(--muted)}
 select{padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);font:500 14px "Figtree",system-ui,sans-serif}
 #save{justify-self:start}
+.dbg summary{cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between}
+.dbg summary::-webkit-details-marker{display:none}
+.dbg summary::after{content:"+";font:500 18px "IBM Plex Mono",monospace;color:var(--muted)}
+.dbg[open] summary::after{content:"−"}
+.log{margin:0;background:var(--ground);border:1px solid var(--line);border-radius:10px;padding:10px;font-size:11px;line-height:1.45;max-height:320px;overflow:auto;white-space:pre-wrap;word-break:break-all;color:var(--ink)}
 .status{font-size:12px;color:var(--muted);margin:0;min-height:1em}
 .hint{font-size:13px;color:var(--muted);text-align:center;margin:0;max-width:36ch}
 .hint strong{color:var(--ink)}
@@ -152,6 +157,32 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
     <p class="note" id="btNote" hidden>Il Bluetooth diretto funziona solo in Chrome su Android e con la pagina aperta da un indirizzo https (non dal file e non dentro altre app).</p>
     <p class="note">Chiudi l'app Fun Print prima di collegarti: la stampante accetta una connessione alla volta.</p>
   </section>
+
+  <details class="panel dbg" id="dbgBox">
+    <summary><h2>Diagnostica</h2></summary>
+    <p class="note">Registra ogni passaggio Bluetooth. Se la stampa non esce, tocca <strong>Copia log</strong> e incollalo nella chat con Claude.</p>
+    <div class="toggles">
+      <button class="chip" type="button" id="dbgFeed">Test: avanza carta</button>
+      <button class="chip" type="button" id="dbgCopy">Copia log</button>
+      <button class="chip" type="button" id="dbgClear">Pulisci</button>
+    </div>
+    <div class="custom">
+      <label for="chunkSel">Blocchi di invio</label>
+      <select id="chunkSel">
+        <option value="180">180 byte</option>
+        <option value="100">100 byte</option>
+        <option value="20">20 byte (lento, più compatibile)</option>
+      </select>
+    </div>
+    <div class="custom">
+      <label for="writeMode">Modo di scrittura</label>
+      <select id="writeMode">
+        <option value="nores">Senza risposta (normale)</option>
+        <option value="res">Con risposta</option>
+      </select>
+    </div>
+    <pre class="log mono" id="dbgLog" aria-live="polite"></pre>
+  </details>
 
   <section class="panel" aria-labelledby="h-save">
     <h2 id="h-save">Salva l'immagine</h2>
@@ -403,6 +434,14 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
   const RESUME = [0x51,0x78,0xae,0x01,0x01,0x00,0x00,0x00,0xff];
   const same = (a, b) => a.length === b.length && a.every((v,i) => v === b[i]);
 
+  const LOG = [];
+  const hex = (a, max=48) => { const b = [...a].slice(0, max).map(x => x.toString(16).padStart(2,'0')).join(' '); return a.length > max ? b + ' …(+' + (a.length-max) + ')' : b; };
+  function log(msg){
+    const t = new Date(), p = (n,l=2) => String(n).padStart(l,'0');
+    const line = p(t.getHours())+':'+p(t.getMinutes())+':'+p(t.getSeconds())+'.'+p(t.getMilliseconds(),3)+'  '+msg;
+    LOG.push(line); if (LOG.length > 600) LOG.splice(0, LOG.length - 600);
+    const el = $('dbgLog'); el.textContent = LOG.join('\n'); el.scrollTop = el.scrollHeight;
+  }
   const BT = { dev:null, ctl:null, ntf:null, data:null, proto:null, paused:false, busy:false, chunk:180, waiters:{} };
 
   function btUI(state, msg){
@@ -421,6 +460,8 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
 
   function onNotify(e){
     const v = new Uint8Array(e.target.value.buffer.slice(e.target.value.byteOffset, e.target.value.byteOffset + e.target.value.byteLength));
+    log('← ' + hex(v));
+    if (same([...v], PAUSE)) log('   (stampante: pausa)'); else if (same([...v], RESUME)) log('   (stampante: riprendi)');
     if (same([...v], PAUSE)) { BT.paused = true; return; }
     if (same([...v], RESUME)) { BT.paused = false; return; }
     if (v[0] === 0x22 && v[1] === 0x21){
@@ -435,8 +476,14 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
     });
   }
 
+  BT.nWrites = 0;
   async function writeTo(ch, bytes){
-    if (ch.writeValueWithoutResponse) await ch.writeValueWithoutResponse(bytes);
+    BT.nWrites++;
+    if (BT.nWrites <= 14) log('→ ' + (ch === BT.data ? '[AE03] ' : '[AE01] ') + hex(bytes));
+    else if (BT.nWrites === 15) log('→ … (le scritture successive non vengono mostrate una per una)');
+    const withRes = $('writeMode').value === 'res';
+    if (!withRes && ch.writeValueWithoutResponse) await ch.writeValueWithoutResponse(bytes);
+    else if (ch.writeValueWithResponse) await ch.writeValueWithResponse(bytes);
     else await ch.writeValue(bytes);
   }
   // stream per protocollo classico: spezza in blocchi e rispetta pausa/ripresa
@@ -447,7 +494,8 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
       const part = bytes.slice(pos, pos + BT.chunk);
       try { await writeTo(BT.ctl, part); }
       catch (err){
-        if (BT.chunk > 20){ BT.chunk = 20; continue; }
+        log('✗ scrittura fallita (' + part.length + ' byte): ' + (err && err.message));
+        if (BT.chunk > 20){ BT.chunk = 20; log('   riprovo con blocchi da 20 byte'); continue; }
         throw err;
       }
       pos += part.length;
@@ -457,8 +505,8 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
   }
 
   // bitmap 1 bit per punto, bit meno significativo = punto più a sinistra, 1 = nero
-  function rowsFromBits(){
-    const {out, W, H} = S.bits, flip = $('flip180').checked;
+  function rowsFromBits(bits){
+    const {out, W, H} = bits || S.bits, flip = $('flip180').checked;
     const bpr = Math.ceil(W / 8), buf = new Uint8Array(bpr * H);
     for (let y=0;y<H;y++){
       const sy = flip ? H-1-y : y;
@@ -494,20 +542,33 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
       BT.ctl = await svc.getCharacteristic(CH.ctl);
       BT.ntf = await svc.getCharacteristic(CH.ntf);
       try { BT.data = await svc.getCharacteristic(CH.data); } catch(e){ BT.data = null; }
+      log('Dispositivo: "' + (dev.name || '(senza nome)') + '"  id ' + dev.id);
+      log('Servizio: ' + svc.uuid);
+      try {
+        const chars = await svc.getCharacteristics();
+        for (const c of chars){
+          const pr = c.properties, f = [];
+          for (const k of ['read','write','writeWithoutResponse','notify','indicate']) if (pr[k]) f.push(k);
+          log('  car. ' + c.uuid.slice(4,8) + ': ' + f.join(', '));
+        }
+      } catch(e){ log('  impossibile elencare le caratteristiche: ' + e.message); }
       BT.proto = pickProto(dev.name);
       if (BT.proto === 'mxw' && !BT.data) BT.proto = 'classic';
-      BT.paused = false; BT.chunk = 180;
+      BT.paused = false; BT.chunk = +$('chunkSel').value; BT.nWrites = 0;
+      log('Protocollo scelto: ' + (BT.proto === 'mxw' ? 'MXW01' : 'classico') + (BT.data ? '' : ' (AE03 assente)'));
       await BT.ntf.startNotifications();
       BT.ntf.addEventListener('characteristicvaluechanged', onNotify);
+      log('Notifiche AE02 attive');
       dev.addEventListener('gattserverdisconnected', () => {
         BT.ctl = BT.ntf = BT.data = null; BT.busy = false; progress(null);
+        log('Stampante scollegata');
         btUI('off', 'Stampante scollegata.');
       });
       BT.busy = false;
       btUI('on', (dev.name || 'Stampante') + ' · protocollo ' + (BT.proto === 'mxw' ? 'MXW01' : 'classico'));
     } catch (err){
       BT.busy = false;
-      if (err && err.name === 'NotFoundError') btUI('off', 'Nessuna stampante scelta.');
+      if (err && err.name === 'NotFoundError') btUI('off', 'Nessuna stampante scelta. Se non compariva nella lista: accendila, chiudi Fun Print e controlla che Bluetooth e posizione del telefono siano attivi.');
       else btUI('err', (err && err.message) || 'Collegamento non riuscito.');
     }
   }
@@ -515,8 +576,8 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
     try { BT.dev && BT.dev.gatt.connected && BT.dev.gatt.disconnect(); } catch(e){}
   }
 
-  async function printClassic(){
-    const {buf, bpr, H, W} = rowsFromBits();
+  async function printClassic(bits){
+    const {buf, bpr, H, W} = rowsFromBits(bits);
     const name = (BT.dev && BT.dev.name) || '';
     const energy = Math.round(0x1000 + (+$('energy').value/100) * (0xffff - 0x1000));
     const pre = [];
@@ -542,8 +603,8 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
     await streamClassic(all, f => progress(f));
   }
 
-  async function printMXW(){
-    const {buf, bpr, H} = rowsFromBits();
+  async function printMXW(bits){
+    const {buf, bpr, H} = rowsFromBits(bits);
     const intensity = Math.round(+$('energy').value/100 * 255);
     await writeTo(BT.ctl, mxw(0xa2, [intensity])); await sleep(50);
     const st = await (async () => { const w = waitFor(0xa1, 5000); await writeTo(BT.ctl, mxw(0xa1, [0x00])); return w; })();
@@ -574,13 +635,18 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
     return o;
   }
 
-  async function doPrint(){
-    if (!BT.ctl || !S.bits || BT.busy) return;
+  async function doPrint(bits, label){
+    bits = bits || S.bits;
+    if (!BT.ctl || !bits || BT.busy) return;
+    BT.nWrites = 0; BT.chunk = +$('chunkSel').value;
+    log('--- ' + (label || 'Stampa') + ': ' + bits.W + '×' + bits.H + ' px, protocollo ' + (BT.proto === 'mxw' ? 'MXW01' : 'classico') + ', scurezza ' + $('energy').value + '%, blocchi ' + BT.chunk + ', scrittura ' + $('writeMode').value);
     BT.busy = true; btUI('busy', 'Invio alla stampante…'); progress(0);
     try {
-      if (BT.proto === 'mxw') await printMXW(); else await printClassic();
-      btUI('on', 'Stampa inviata (' + S.bits.H + ' righe, circa ' + Math.round(S.bits.H/8) + ' mm).');
+      if (BT.proto === 'mxw') await printMXW(bits); else await printClassic(bits);
+      log('✓ invio completato (' + BT.nWrites + ' scritture)');
+      btUI('on', 'Stampa inviata (' + bits.H + ' righe, circa ' + Math.round(bits.H/8) + ' mm).');
     } catch (err){
+      log('✗ errore: ' + ((err && (err.name + ' ' + err.message)) || 'sconosciuto'));
       btUI(BT.ctl ? 'on' : 'off', 'Errore: ' + ((err && err.message) || 'stampa non riuscita'));
     } finally {
       BT.busy = false; btUI(BT.ctl ? 'on' : 'off'); setTimeout(() => progress(null), 1500);
@@ -588,7 +654,20 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
   }
 
   $('btConnect').addEventListener('click', () => BT.ctl ? disconnect() : connect());
-  $('btPrint').addEventListener('click', doPrint);
+  $('btPrint').addEventListener('click', () => doPrint());
+  // test: una striscia con motivo a scacchi, poi avanzamento
+  $('dbgFeed').addEventListener('click', () => {
+    if (!BT.ctl){ log('Prima collega la stampante.'); $('dbgBox').open = true; return; }
+    const W = 384, H = 48, out = new Uint8Array(W*H).fill(255);
+    for (let y=0;y<H;y++) for (let x=0;x<W;x++) if (((x>>4) + (y>>4)) % 2 === 0) out[y*W+x] = 0;
+    doPrint({out, W, H}, 'Test');
+  });
+  $('dbgCopy').addEventListener('click', async () => {
+    const txt = 'Rotolino log\nUA: ' + navigator.userAgent + '\n' + LOG.join('\n');
+    try { await navigator.clipboard.writeText(txt); log('(log copiato)'); }
+    catch(e){ const r = document.createRange(); r.selectNodeContents($('dbgLog')); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); log('(seleziona e copia a mano)'); }
+  });
+  $('dbgClear').addEventListener('click', () => { LOG.length = 0; $('dbgLog').textContent = ''; });
   $('proto').addEventListener('change', () => {
     if (BT.dev){ BT.proto = pickProto(BT.dev.name); if (BT.proto === 'mxw' && !BT.data) BT.proto = 'classic';
       btUI('on', (BT.dev.name || 'Stampante') + ' · protocollo ' + (BT.proto === 'mxw' ? 'MXW01' : 'classico')); }
