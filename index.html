@@ -242,6 +242,10 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
       <div class="top"><label for="sharp">Nitidezza</label><output id="o-sharp">30</output></div>
       <input type="range" id="sharp" min="0" max="100" value="30">
     </div>
+    <div class="row">
+      <div class="top"><label for="maxblack">Nero massimo per riga</label><output id="o-maxblack">65%</output></div>
+      <input type="range" id="maxblack" min="40" max="100" value="65">
+    </div>
     <div class="toggles">
       <label class="chip"><input type="checkbox" id="invert"> Inverti</label>
       <button class="chip" type="button" id="reset">Valori consigliati</button>
@@ -257,7 +261,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
 <script>
 (function(){
   const $ = id => document.getElementById(id);
-  const DEF = {bright:0, contrast:15, gamma:100, sharp:30, thresh:128};
+  const DEF = {bright:0, contrast:15, gamma:100, sharp:30, thresh:128, maxblack:65};
   const S = {img:null, rot:0, sample:true};
   const work = document.createElement('canvas');
   const wctx = work.getContext('2d', {willReadFrequently:true});
@@ -334,6 +338,19 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
         if (y+2<H) L[i+2*W]+=e;
       }
     }
+    // limita i punti neri per riga: righe troppo piene fanno calare la corrente della testina
+    const cap = +$('maxblack').value / 100;
+    if (cap < 1){
+      for (let y=0;y<H;y++){
+        let k = 0; for (let x=0;x<W;x++) if (out[y*W+x] === 0) k++;
+        const r = k / W; if (r <= cap) continue;
+        const keep = cap / r;
+        for (let x=0;x<W;x++){
+          const i=y*W+x;
+          if (out[i] === 0 && (BAYER[(y&7)*8+(x&7)] + 0.5) / 64 >= keep) out[i] = 255;
+        }
+      }
+    }
     for (let i=0,p=0;i<N;i++,p+=4){ d[p]=d[p+1]=d[p+2]=out[i]; d[p+3]=255; }
     S.bits = {out, W, H};
     wctx.putImageData(id,0,0);
@@ -351,6 +368,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
     $('o-contrast').textContent = sgn(+$('contrast').value);
     $('o-gamma').textContent = (+$('gamma').value/100).toFixed(2);
     $('o-sharp').textContent = $('sharp').value;
+    $('o-maxblack').textContent = $('maxblack').value + '%';
     $('o-thresh').textContent = $('thresh').value;
     $('o-energy').textContent = $('energy').value + '%';
     $('threshRow').hidden = algo() !== 'threshold';
