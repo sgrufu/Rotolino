@@ -143,8 +143,8 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
     <p class="status mono" id="btStatus" role="status"></p>
     <div class="bar" id="btBar" hidden><i id="btFill"></i></div>
     <div class="row">
-      <div class="top"><label for="energy">Scurezza</label><output id="o-energy">65%</output></div>
-      <input type="range" id="energy" min="5" max="100" value="65">
+      <div class="top"><label for="energy">Scurezza</label><output id="o-energy">50%</output></div>
+      <input type="range" id="energy" min="5" max="100" value="50">
     </div>
     <div class="toggles">
       <label class="chip"><input type="checkbox" id="flip180"> Capovolgi 180°</label>
@@ -513,7 +513,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
     LOG.push(line); if (LOG.length > 600) LOG.splice(0, LOG.length - 600);
     const el = $('dbgLog'); el.textContent = LOG.join('\n'); el.scrollTop = el.scrollHeight;
   }
-  const BT = { dev:null, ctl:null, ntf:null, data:null, proto:null, paused:false, busy:false, chunk:180, waiters:{} };
+  const BT = { temp:0, dev:null, ctl:null, ntf:null, data:null, proto:null, paused:false, busy:false, chunk:180, waiters:{} };
 
   function btUI(state, msg){
     const pill = $('btPill');
@@ -533,7 +533,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
     const v = new Uint8Array(e.target.value.buffer.slice(e.target.value.byteOffset, e.target.value.byteOffset + e.target.value.byteLength));
     log('← ' + hex(v));
     if (same([...v], PAUSE)) log('   (stampante: pausa)'); else if (same([...v], RESUME)) log('   (stampante: riprendi / fine)');
-    else if (v[0] === 0x51 && v[1] === 0x78 && v[2] === 0xd3) log('   (temperatura testina: ' + v[6] + ' °C)');
+    else if (v[0] === 0x51 && v[1] === 0x78 && v[2] === 0xd3){ BT.temp = v[6]; log('   (temperatura testina: ' + v[6] + ' °C)'); }
     if (same([...v], PAUSE)) { BT.paused = true; return; }
     if (same([...v], RESUME)) { BT.paused = false; return; }
     if (v[0] === 0x22 && v[1] === 0x21){
@@ -683,8 +683,15 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
   async function printV5G(bits){
     const {buf, bpr, H, W} = rowsFromBits(bits);
     const p = +$('energy').value;
-    const density = Math.max(1, Math.min(200, Math.round(60 + p * 1.4)));   // 50% ≈ 130, il valore medio di Fun Print
-    const energy = p <= 50 ? Math.round(3000 + (p - 5) / 45 * 7000) : Math.round(10000 + (p - 50) / 50 * (65535 - 10000));   // 50% = 10000 (Fun Print), 100% = 0xFFFF
+    let density = Math.max(1, Math.min(200, Math.round(60 + p * 1.4)));   // 50% ≈ 130, il valore medio di Fun Print
+    let energyScale = 1;
+    const t = BT.temp || 0;
+    if (t >= 75){ throw new Error('Testina a ' + t + ' °C: lascia raffreddare la stampante qualche minuto.'); }
+    else if (t >= 70){ density = Math.min(density, 90); energyScale = 0.4; }
+    else if (t >= 60){ density = Math.min(density, 100); energyScale = 0.6; }
+    else if (t >= 55 && density >= 130){ density -= 20; energyScale = 0.8; }
+    if (energyScale < 1) log('   testina calda (' + t + ' °C): riduco il calore');
+    const energy = Math.round((p <= 50 ? 3000 + (p - 5) / 45 * 7000 : 10000 + (p - 50) / 50 * (65535 - 10000)) * energyScale);   // 50% = 10000 (Fun Print), 100% = 0xFFFF
     const blacken = Math.max(1, Math.min(5, Math.round(p / 25) + 1));
     log('   V5G: densità ' + density + ', energia ' + energy + ', annerimento ' + blacken);
     const parts = [
