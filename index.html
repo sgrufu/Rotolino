@@ -152,14 +152,6 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
       <label class="chip"><input type="checkbox" id="coldComp" checked> Compensa testina fredda</label>
     </div>
     <div class="custom">
-      <label for="speed">Velocità</label>
-      <select id="speed">
-        <option value="10">Normale (come Fun Print)</option>
-        <option value="20">Lenta</option>
-        <option value="32" selected>Molto lenta (più nero)</option>
-      </select>
-    </div>
-    <div class="custom">
       <label for="proto">Protocollo</label>
       <select id="proto">
         <option value="auto">Automatico</option>
@@ -582,7 +574,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
       }
       pos += part.length;
       if (onProg) onProg(pos / bytes.length);
-      await sleep(BT.chunk > 20 ? 12 : 6);
+      await sleep(BT.proto === 'v5g' ? 6 : (BT.chunk > 20 ? 12 : 6));
     }
   }
 
@@ -703,7 +695,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
     if (energyScale < 1) log('   testina calda (' + t + ' °C): riduco il calore');
     const energy = Math.round((p <= 50 ? 3000 + (p - 5) / 45 * 7000 : 10000 + (p - 50) / 50 * (65535 - 10000)) * energyScale);   // 50% = 10000 (Fun Print), 100% = 0xFFFF
     const blacken = Math.max(1, Math.min(5, Math.round(p / 25) + 1));
-    log('   V5G: densità ' + density + ', energia ' + energy + ', annerimento ' + blacken + ', velocità ' + $('speed').value);
+    log('   V5G: densità ' + density + ', energia ' + energy + ', annerimento ' + blacken);
     const parts = [
       cat(0xf2, [0x01, Math.min(200, density + (($('coldComp').checked) ? Math.max(0, Math.min(45, Math.round((50 - (BT.temp || 30)) * 2.2))) : 0))]),
       cat(0xa3, [0x00]),
@@ -711,7 +703,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
       cat(0xa6, [0xaa,0x55,0x17,0x38,0x44,0x5f,0x5f,0x5f,0x44,0x38,0x2c]),
       cat(0xaf, le16(energy)),
       cat(0xbe, [0x00]),
-      cat(0xbd, [+$('speed').value])
+      cat(0xbd, [0x0a])
     ];
     // compensazione testina fredda: densità più alta all'inizio, poi scende fino al valore scelto
     const comp = $('coldComp').checked;
