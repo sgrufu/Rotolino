@@ -243,6 +243,10 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
       <div class="top"><label for="sharp">Nitidezza</label><output id="o-sharp">30</output></div>
       <input type="range" id="sharp" min="0" max="100" value="30">
     </div>
+    <div class="row">
+      <div class="top"><label for="whites">Bianchi puliti</label><output id="o-whites">20</output></div>
+      <input type="range" id="whites" min="0" max="50" value="20">
+    </div>
 
     <div class="toggles">
       <label class="chip"><input type="checkbox" id="invert"> Inverti</label>
@@ -259,7 +263,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
 <script>
 (function(){
   const $ = id => document.getElementById(id);
-  const DEF = {bright:0, contrast:15, gamma:100, sharp:30, thresh:128};
+  const DEF = {bright:0, contrast:15, gamma:100, sharp:30, thresh:128, whites:20};
   const S = {img:null, rot:0, sample:true};
   const work = document.createElement('canvas');
   const wctx = work.getContext('2d', {willReadFrequently:true});
@@ -295,11 +299,17 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
     const c = +$('contrast').value * 2.55;
     const f = (259*(c+255))/(255*(259-c));
     const g = +$('gamma').value / 100;
+    const wc = +$('whites').value, wT = wc > 0 ? 255 - wc * 1.6 : 255, wLo = wT - 40;
     for (let i=0,p=0;i<N;i++,p+=4){
       let l = 0.299*d[p] + 0.587*d[p+1] + 0.114*d[p+2];
       l = f*(l + b - 128) + 128;
       l = l < 0 ? 0 : l > 255 ? 255 : l;
-      L[i] = 255 * Math.pow(l/255, 1/g);
+      let v = 255 * Math.pow(l/255, 1/g);
+      if (wT < 255){                       // bianchi puliti: i quasi-bianchi diventano bianco pieno
+        if (v >= wT) v = 255;
+        else if (v > wLo){ const k = (v - wLo) / (wT - wLo); v += (255 - v) * k * k; }
+      }
+      L[i] = v;
     }
     const amt = +$('sharp').value / 50;
     if (amt > 0){
@@ -353,6 +363,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
     $('o-contrast').textContent = sgn(+$('contrast').value);
     $('o-gamma').textContent = (+$('gamma').value/100).toFixed(2);
     $('o-sharp').textContent = $('sharp').value;
+    $('o-whites').textContent = $('whites').value;
     $('o-thresh').textContent = $('thresh').value;
     $('o-energy').textContent = $('energy').value + '%';
     $('threshRow').hidden = algo() !== 'threshold';
