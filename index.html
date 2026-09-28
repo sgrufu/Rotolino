@@ -143,8 +143,8 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
     <p class="status mono" id="btStatus" role="status"></p>
     <div class="bar" id="btBar" hidden><i id="btFill"></i></div>
     <div class="row">
-      <div class="top"><label for="energy">Scurezza</label><output id="o-energy">50%</output></div>
-      <input type="range" id="energy" min="5" max="100" value="50">
+      <div class="top"><label for="energy">Scurezza</label><output id="o-energy">65%</output></div>
+      <input type="range" id="energy" min="5" max="100" value="65">
     </div>
     <div class="toggles">
       <label class="chip"><input type="checkbox" id="flip180"> Capovolgi 180°</label>
@@ -227,16 +227,16 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
   <section class="panel" aria-labelledby="h-adj">
     <h2 id="h-adj">Regolazioni</h2>
     <div class="row">
-      <div class="top"><label for="bright">Luminosità</label><output id="o-bright">+10</output></div>
-      <input type="range" id="bright" min="-60" max="60" value="10">
+      <div class="top"><label for="bright">Luminosità</label><output id="o-bright">0</output></div>
+      <input type="range" id="bright" min="-60" max="60" value="0">
     </div>
     <div class="row">
       <div class="top"><label for="contrast">Contrasto</label><output id="o-contrast">+15</output></div>
       <input type="range" id="contrast" min="-50" max="80" value="15">
     </div>
     <div class="row">
-      <div class="top"><label for="gamma">Mezzitoni</label><output id="o-gamma">1.20</output></div>
-      <input type="range" id="gamma" min="50" max="250" value="120">
+      <div class="top"><label for="gamma">Mezzitoni</label><output id="o-gamma">1.00</output></div>
+      <input type="range" id="gamma" min="50" max="250" value="100">
     </div>
     <div class="row">
       <div class="top"><label for="sharp">Nitidezza</label><output id="o-sharp">30</output></div>
@@ -249,7 +249,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
   </section>
 
   <div class="foot">
-    <p>La carta termica stampa solo punti neri, senza grigi: il retino simula le sfumature con la densità dei punti. Le stampanti economiche tendono a scurire, per questo luminosità e mezzitoni partono un po' alti.</p>
+    <p>La carta termica stampa solo punti neri, senza grigi: il retino simula le sfumature con la densità dei punti. Se la stampa esce chiara alza prima la Scurezza; se esce impastata abbassala o alza la Luminosità.</p>
     <p>La stampa diretta usa il protocollo delle stampanti “cat printer” gestite da Fun Print (GB01–GB03, MX05–MX11, YT01, MXW01 e simili), ricostruito dalla community open source. Se la stampa esce storta o illeggibile, prova l'altro protocollo o la larghezza 384.</p>
   </div>
 </div>
@@ -257,7 +257,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
 <script>
 (function(){
   const $ = id => document.getElementById(id);
-  const DEF = {bright:10, contrast:15, gamma:120, sharp:30, thresh:128};
+  const DEF = {bright:0, contrast:15, gamma:100, sharp:30, thresh:128};
   const S = {img:null, rot:0, sample:true};
   const work = document.createElement('canvas');
   const wctx = work.getContext('2d', {willReadFrequently:true});
@@ -418,15 +418,15 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
       // allarga i toni: p2 → quasi nero, p98 → quasi bianco
       const span = Math.max(24, p98 - p2);
       let f = 235 / span; f = Math.max(0.6, Math.min(2.6, f));
-      const b = (10 - 128) / f + 128 - p2;
+      const b = (4 - 128) / f + 128 - p2;
       const c255 = 259*255*(f-1) / (259 + 255*f);
       set('contrast', c255 / 2.55);
       set('bright', b / 2.55);
-      // mezzitoni: porta la mediana un po' sopra il centro (la carta termica scurisce)
+      // mezzitoni: porta la mediana al centro
       const cB = +$('bright').value*2.55, cC = +$('contrast').value*2.55;
       const ff = (259*(cC+255))/(255*(259-cC));
       let m = (ff*(p50 + cB - 128) + 128) / 255; m = Math.max(0.03, Math.min(0.97, m));
-      const g = Math.log(m) / Math.log(0.6);
+      const g = Math.log(m) / Math.log(0.5);
       set('gamma', Math.max(0.5, Math.min(2.5, g)) * 100);
       set('sharp', lap < 6 ? 55 : lap < 14 ? 35 : 15);
       pick('atkinson');
@@ -684,7 +684,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
     const {buf, bpr, H, W} = rowsFromBits(bits);
     const p = +$('energy').value;
     const density = Math.max(1, Math.min(200, Math.round(60 + p * 1.4)));   // 50% ≈ 130, il valore medio di Fun Print
-    const energy = Math.max(3000, Math.min(30000, Math.round(p / 50 * 10000)));
+    const energy = p <= 50 ? Math.round(3000 + (p - 5) / 45 * 7000) : Math.round(10000 + (p - 50) / 50 * (65535 - 10000));   // 50% = 10000 (Fun Print), 100% = 0xFFFF
     const blacken = Math.max(1, Math.min(5, Math.round(p / 25) + 1));
     log('   V5G: densità ' + density + ', energia ' + energy + ', annerimento ' + blacken);
     const parts = [
