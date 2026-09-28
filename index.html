@@ -149,6 +149,15 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
     <div class="toggles">
       <label class="chip"><input type="checkbox" id="flip180"> Capovolgi 180°</label>
       <label class="chip"><input type="checkbox" id="feedMore" checked> Avanza carta alla fine</label>
+      <label class="chip"><input type="checkbox" id="coldComp" checked> Compensa testina fredda</label>
+    </div>
+    <div class="custom">
+      <label for="speed">Velocità</label>
+      <select id="speed">
+        <option value="10">Normale (come Fun Print)</option>
+        <option value="20">Lenta</option>
+        <option value="32" selected>Molto lenta (più nero)</option>
+      </select>
     </div>
     <div class="custom">
       <label for="proto">Protocollo</label>
@@ -711,17 +720,29 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:28px}
     if (energyScale < 1) log('   testina calda (' + t + ' °C): riduco il calore');
     const energy = Math.round((p <= 50 ? 3000 + (p - 5) / 45 * 7000 : 10000 + (p - 50) / 50 * (65535 - 10000)) * energyScale);   // 50% = 10000 (Fun Print), 100% = 0xFFFF
     const blacken = Math.max(1, Math.min(5, Math.round(p / 25) + 1));
-    log('   V5G: densità ' + density + ', energia ' + energy + ', annerimento ' + blacken);
+    log('   V5G: densità ' + density + ', energia ' + energy + ', annerimento ' + blacken + ', velocità ' + $('speed').value);
     const parts = [
-      cat(0xf2, [0x01, density]),
+      cat(0xf2, [0x01, Math.min(200, density + (($('coldComp').checked) ? Math.max(0, Math.min(45, Math.round((50 - (BT.temp || 30)) * 2.2))) : 0))]),
       cat(0xa3, [0x00]),
       cat(0xa4, [0x30 + blacken]),
       cat(0xa6, [0xaa,0x55,0x17,0x38,0x44,0x5f,0x5f,0x5f,0x44,0x38,0x2c]),
       cat(0xaf, le16(energy)),
       cat(0xbe, [0x00]),
-      cat(0xbd, [0x0a])
+      cat(0xbd, [+$('speed').value])
     ];
-    for (let y=0;y<H;y++) parts.push(cat(0xa2, buf.subarray(y*bpr, (y+1)*bpr)));
+    // compensazione testina fredda: densità più alta all'inizio, poi scende fino al valore scelto
+    const comp = $('coldComp').checked;
+    const t0 = BT.temp || 30;
+    const boost = comp ? Math.max(0, Math.min(45, Math.round((50 - t0) * 2.2))) : 0;
+    const ramp = 260;                               // righe (~33 mm) in cui si torna al valore base
+    if (boost) log('   testina a ' + t0 + ' °C: parto con densità +' + boost + ' e scendo in ' + ramp + ' righe');
+    for (let y=0;y<H;y++){
+      if (boost && y % 24 === 0 && y <= ramp){
+        const dd = Math.min(200, Math.round(density + boost * (1 - y / ramp)));
+        parts.push(cat(0xf2, [0x01, dd]));
+      }
+      parts.push(cat(0xa2, buf.subarray(y*bpr, (y+1)*bpr)));
+    }
     if ($('feedMore').checked){
       parts.push(cat(0xbd, [0x19]));
       for (let i=0;i<3;i++) parts.push(cat(0xa1, [0x30, 0x00]));
